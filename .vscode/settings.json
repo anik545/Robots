@@ -1,0 +1,16 @@
+{
+    "python.pythonPath": "/usr/bin/python",
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": true,
+    "python.linting.enabled": false,
+    "cmake.configureOnOpen": false,
+    "python.autoComplete.extraPaths": [
+        "/home/anik/catkin_ws/devel/lib/python2.7/dist-packages",
+        "/opt/ros/kinetic/lib/python2.7/dist-packages"
+    ],
+    "spellright.language": [],
+    "spellright.documentTypes": [
+        "markdown",
+        "plaintext"
+    ]
+}
