@@ -42,26 +42,16 @@ CYLINDER_RADIUS = .3 + ROBOT_RADIUS
 
 
 def braitenberg(front, front_left, front_right, left, right):
-    u = 2.  # [m/s]
-    w = 0.  # [rad/s] going counter-clockwise.
+    s = np.array([[left, front_left, front, front_right, right]])
+    s = np.vectorize(lambda x: 1./x)(s)
+    s = np.transpose(s)
+    ws = np.array([[0.25, 0.05, 0.05, 0.05, 0.25],
+                   [-0.4, -1.2, -0.4, 1.5, 0.4]])
 
-    # MISING: Implement a braitenberg controller that takes the range
-    # measurements given in argument to steer the robot.
-    if front < 1:
-        w = -1
-        u = -2 + 3*front
-    elif front < 2:
-        w = -0.2
-        u = 0.5*front
-    else:
-        w = 0
-        u = 1
-    if front_left < 0.2:
-        w = -0.5
-    if front_right < 0.2:
-        w = 0.5
-    return u, w
-
+    vs = ws.dot(s)
+    u = vs[0][0] + 0.2
+    w = vs[1][0] + 0.1
+    return u*0.5, w*0.7
 
 class Particle(object):
     """Represents a particle."""
@@ -89,8 +79,8 @@ class Particle(object):
         # and compute_weight().
         twod_pos = np.array([self._pose[X], self._pose[Y]])
 
-        x_ok = 0 - WALL_OFFSET < self._pose[X] < 0 + WALL_OFFSET
-        y_ok = 0 - WALL_OFFSET < self._pose[Y] < 0 + WALL_OFFSET
+        x_ok = 0 - WALL_OFFSET + ROBOT_RADIUS < self._pose[X] < 0 + WALL_OFFSET - ROBOT_RADIUS
+        y_ok = 0 - WALL_OFFSET + ROBOT_RADIUS < self._pose[Y] < 0 + WALL_OFFSET - ROBOT_RADIUS
 
         dist_to_cylinder = np.linalg.norm(twod_pos - CYLINDER_POSITION)
         not_in_cylinder = dist_to_cylinder > CYLINDER_RADIUS
@@ -101,22 +91,27 @@ class Particle(object):
         # delta_pose is an offset in the particle frame. As motion model,
         # use roughtly 10% standard deviation with respect to the forward
         # and rotational velocity.
-        #
-        forward = np.sqrt(delta_pose[X]**2 + delta_pose[Y]**2)
-        forward = 0.1 if forward == 0 else forward
-        # , np.abs(delta_pose[X]*0.1))
-        self._pose[X] += np.random.normal(np.cos(self._pose[YAW]) *delta_pose[X], scale=forward*0.1)
-        self._pose[Y] +=  np.random.normal(np.sin(self._pose[YAW]) *delta_pose[X], scale=forward*0.1)
-        # , np.abs(delta_pose[YAW]*0.1))
 
-        # rot = 1 if delta_pose[YAW] == 0 else delta_pose[YAW]
-        # self._pose[YAW] += np.random.normal(delta_pose[YAW], scale=0.1*np.abs(rot))
+        sig = np.abs(delta_pose[X])
+        sig = 0.01 if sig == 0 else sig
+        self._pose[X] += np.cos(self._pose[YAW]) * np.random.normal(delta_pose[X], scale=sig)
+        self._pose[Y] += np.sin(self._pose[YAW]) * np.random.normal(delta_pose[X], scale=sig)
 
-        self._pose[YAW] += np.random.normal(delta_pose[YAW])
+        sig1 = np.abs(delta_pose[YAW]*0.1)
+        sig1 = 0.01 if sig1 == 0 else sig1
+        self._pose[YAW] += np.random.normal(delta_pose[YAW], scale=sig1)
 
         # In a second step, make the necessary modifications to handle the
         # kidnapped robot problem. For example, with a low probability the
         # particle can be repositioned randomly in the arena.
+        if np.random.uniform() < 0.05:
+            self._pose[0] = np.random.uniform(-2, 2)
+            self._pose[1] = np.random.uniform(-2, 2)
+            self._pose[2] = np.random.uniform(0, 2*np.pi)
+            while not self.is_valid():
+                self._pose[0] = np.random.uniform(-2, 2)
+                self._pose[1] = np.random.uniform(-2, 2)
+                self._pose[2] = np.random.uniform(0, 2*np.pi)
         pass
 
     def compute_weight(self, front, front_left, front_right, left, right):
@@ -128,16 +123,17 @@ class Particle(object):
         # will show up as infinity).
         sigma = .8
         variance = sigma ** 2.
-        """
+
         if not self.is_valid():
             self._weight = 0
             return
-        r = self.ray_trace(np.pi/2)
-        l = self.ray_trace(-np.pi/2)
+        r = self.ray_trace(-np.pi/2)
+        l = self.ray_trace(np.pi/2)
         f = self.ray_trace(0)
         fr = self.ray_trace(-np.pi/4)
         fl = self.ray_trace(np.pi/4)
         pos = np.array([f, fl, fr, l, r])
+        pos = np.vectorize(lambda x: min(x,4))(pos)
         measure = np.array([front, front_left, front_right, left, right])
         mean_pos = np.mean(pos)
         mean_measure = np.mean(measure)
@@ -146,31 +142,8 @@ class Particle(object):
         p_z_given_x = np.mean(ps_z_x)
         # p_z_given_x = norm.pdf(mean_measure, loc=mean_pos, scale=sigma)
         self._weight = p_z_given_x
-        """
-        def compute_prob(angle, dist_robot_to_obj):
-            dist_particle_to_obj = self.ray_trace(angle)
 
-            # Add noise to the distance by creating a normal distribution
-            distr = norm(loc=dist_particle_to_obj, scale=sigma)
 
-            # Return how likely it is that the distance sensed by the robot belongs to the particle's
-            # distribution i.e. how "silimar"/"close" they are
-            return distr.pdf(dist_robot_to_obj)
-
-        prob_1 = compute_prob(0, front)
-        prob_2 = compute_prob(np.pi / 4, front_left)
-        prob_3 = compute_prob(-np.pi / 4, front_right)
-        prob_4 = compute_prob(-np.pi / 2, left)
-        prob_5 = compute_prob(np.pi / 2, right)
-
-        avg_prob = (prob_1 + prob_2 + prob_3 + prob_4 + prob_5) / 5.
-
-        # Halve the weight if particle position not valid
-        if not self.is_valid():
-            avg_prob = avg_prob / 2.
-
-        # Update particle weight
-        self._weight = avg_prob
 
     def ray_trace(self, angle):
         """Returns the distance to the first obstacle from the particle."""

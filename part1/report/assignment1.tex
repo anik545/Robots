@@ -62,7 +62,7 @@
 	      	\centering
 	      	\includegraphics[width=\textwidth]{fig/1e.png}
 	      	\caption{RK4}
-	      	\label{fig:rk4}
+	      	\label{fig:rk4}	
 	      \end{figure}
 	\item Changing $\omega$ from $cos(t)$ to $cos(\lfloor t \rfloor)$ affects the plots of different step sizes to be closer together.
 	      \begin{figure}[h]
@@ -76,10 +76,10 @@
 \end{enumerate}
 \subsection*{Exercise 2}
 \begin{enumerate}[label=(\alph*)]
-        \item The plot of my braitenburg controller is shown in Figure \ref{fig:braitenburg}. The velocity decreases as the robot approaches an obstable (according to the log function). The velocity is a function of the front, front\_left and front\_right sensors, with the intuition being that if the robot is close to an obstacle it should decelerate so that it can rotate away from it. For the rotational velocity, this is a function of the front\_left, front\_right, left and right sensors. Since we want to move away from obstacles (the 'coward' example from lecture 4), the rotational velocity will increase (counter-clockwise) if the robot senses it is closer to objects on the right, and vice versa for objects on the left. Both velocities are made up of weighted components of the indivdual sensor values. I estimated and tuned these weights by trial and error.
+        \item The plot of my braitenburg controller is shown in Figure \ref{fig:braitenburg}. The velocity decreases as the robot approaches an obstable (according to the log function). The velocity is a function of the reciprocal of the sensors. Using the reciprocal allows the case where the obstacle is further than 3.5 (infinity) becomes 0. For the rotational velocity, this is also function of the reciprocal of the sensors - when the robot is close to an obstacle, it should rotate faster to get away. Since we want to move away from obstacles (the 'coward' example from lecture 4), the rotational velocity will increase (counter-clockwise) if the robot senses it is closer to objects on the right, and vice versa for objects on the left. Both velocities are made up of weighted components of the indivdual sensor values. I estimated and tuned these weights by trial and error. The result is a matrix multiplication of the weights by the sensor values to produce a column vector of $u$ and $v$.
 		\begin{figure}[h]
 			\centering
-			\includegraphics[width=\textwidth]{fig/2a.png}
+			\includegraphics[width=\textwidth]{fig/2a-1.png}
 			\caption{Braitenburg controller}
 			\label{fig:braitenburg}
 		\end{figure}
@@ -92,20 +92,68 @@
 			\label{fig:rule-based}
 		\end{figure}
 
-		\item 
+		\item The braitenburg controller is fairly robust in the face of unexpected obstacles, but there are some cases which can cause this particular controller to get stuck. For example, putting an obstacle directly in front will cause it to crash, but it will recover and move away. Putting an obstable near but not directly in front will allow the robot to steer away before hitting the obstacle. However, if an obstacle is placed in such a way to divert the robot into another obstacle (e.g. a wall), the robot sometimes gets stuck in the wall as it is unable to rotate away.
+		
+		The rule based controller can handle some cases of unexpected obstacles, but cannot recover easily for others. For example, putting in an obstacle when it is moving forward will cause it to slow down and maneouvre around. A similar effect occurs when putting an obstacle slightly to the side (i.e. not directly in line of sight, but would still hit). However, it is possible to trap the robot by putting down an obstacle while it is in it's 'rotation' phase as it gets close to a wall and tries to rotate away. In this case, putting an obstacle behind it will cause it to keep moving backwards into the obstace and get stuck.
 
-        \item In the presence of no noise, the braitenburg controller is more robust, since it will never end up hitting an obstacle even in the presence of unexpected ones. The rule based controller will not 
-\end{enumerate}
+		Overall, the braitenburg controller is less robust as it can recover from less types of obstacle positions.
+
+        \item In the presence of no noise, the braitenburg controller is more robust if it is perfectly tuned, since it will never end up hitting an obstacle even in the presence of unexpected ones. As sensor measurements are guaranteed to be perfect, it can determine its position relative to obstacles \textit{exactly}, so can make sure it doesn't hit them. However, it is possible for a braitenburg controller to get stuck in a position while not hitting an obstacle. For example, if the sensor measurements are such that u and w are both set to 0 (which is possible because of negative weights), then the robot woudl not move despite not hitting any obstacles. The rule based controller will not be able to cover all the cases necessary to handle any obstacle position. However, it is likely more robust in general since it is hard to tune a braitenburg controller perfectly, and they can still get stuck.
+
+	\end{enumerate}
 \section*{1.2 Localization}
 \subsection*{Exercise 3}
 \begin{enumerate}[label=(\alph*)]
-	\item braitenburg
-	\item My solution generates points uniformly inside the square, i.e. from -2 to 2 in both the x and y components. It also generates a random direction (from 0 to $2\pi$). It then checks to see whether the robots has been placed within the cylinder, and if it has, generates a new random pose. It continues until it returns a valid pose (which isnt inside the cylinder).
+	\item The setup and code for my braitenburg controller is shown below:\\
+	\begin{verbatim}
+		def braitenberg(front, front_left, front_right, left, right):
+    s = np.array([[left, front_left, front, front_right, right]])
+    s = np.vectorize(lambda x: 1./x)(s)
+    s = np.transpose(s)
+    ws = np.array([[0.25, 0.05, 0.05, 0.05, 0.25],
+                   [-0.4, -1.2, -0.4, 1.5, 0.4]])
+
+    vs = ws.dot(s)
+    u = vs[0][0] + 0.2
+    w = vs[1][0] + 0.1
+    return u*0.5, w*0.7
+
+	\end{verbatim}
+	\begin{figure}[h]
+		\centering
+		\includegraphics[width=\textwidth]{fig/3a.png}
+		\caption{Gazebo setup}
+		\label{fig:gazebo}
+	\end{figure}
+
+	\item My solution generates points uniformly inside the square, i.e. from -2 to 2 in both the x and y components. It also makes sure that the robot will not intersect a wall, i.e. that the centre of the robot is placedso that its radius escapes the square. It also generates a random direction (from 0 to $2\pi$) uniformly. It then checks to see whether the robot has been placed within the cylinder, and if it has, generates a new random pose since the robot cannot be inside the object. It continues until it returns a valid pose (which isnt inside the cylinder). 
+	
+	Setting the weight to 1 ensures that at the beginning, all these particles are equally likely.
+
 	\item The move function takes delta\_pose, which is an offset relative to the particle. From this, I take the x and y components and add a gaussian error with a standard deviation of 10\% of the magnitude of the movement. This x and y with the noise added is added to the pose of the particle. The same is done for the yaw component.
-	\item The compute\_weight method calculated the new weight of a particle and updates it. If the particle moved outside the arena, then its weight is set to 0 so that it isn't sampled again. For the other particles, their weights are set to $ p(z|x) $, which is the probability of the measurement given the position of the particle. The measurement model is a normal centered around the measured value with a standard deviation of 80cm. The particles which are more likely to be in the correct postion are therefore given a higher weight, and so are much more likely to be resampled.
-	\item e
-	\item f
-	\item g
+
+	\begin{figure}[h]
+		\centering
+		\includegraphics[width=\textwidth]{fig/3c.png}
+		\caption{Rviz setup}
+		\label{fig:rviz}
+	\end{figure}
+
+	\item The compute\_weight method calculated the new weight of a particle and updates it. If the particle moved outside the arena, then its weight is set to 0 so that it isn't sampled again. For the other particles, their weights are set to $ p(z|x) $, which is the probability of the measurement given the position of the particle. The measurement model is a set of normals centered around the measured value with a standard deviation of 80cm. The particles which are more likely to be in the correct postion are therefore given a higher weight, and so are much more likely to be resampled. I take an average of the probabilities of each sensor and use that as the updated weight.
+
+	\item The localization always succeeds, but does not always converge quickly. When the particles are randomly initialised, they will not always cluster towards the position of the robot and will cluster somewhere else which is a symmetric position to the robots real position.
+
+	\item Kidnapping still allows it to succeed, but it may take time to converge. The move function can be changed to take into account a random movement (spawn a new random particle with a low probability) to make converging to a new location faster. If this random particle is generated somehwere other than the position, the particle will die out as it will have a very low weight ans not be resampled, but if it is generated near the new position, it will stay and cause more particles to converge there due to it's higher weight. We can tune how likely these random particles are to ensure that the localisation can recover.
+	\item Figure \ref{fig:localization} shows how quickly the particles converge.To begin with, the particles are random so the error is very high, but the resampling process reduces this error until there is only a small error remaining. There is also a plateau that can be seen on the graph before the large drop - this shows how the particles initially cluster, but converge to the wrong location. There are also some random spikes in error even by the end of the graph, which shows the random particles being generated with a low probability (they help with the kidnapping problem).
+	\begin{figure}[h]
+		\centering
+		\subfloat[Trajectory]{{\includegraphics[width=7cm]{fig/3g-map.png}}}%
+		\qquad
+		\subfloat[Error]{{\includegraphics[width=7cm]{fig/3g-graph.png}}}%
+		\caption{Localization - convergence of particles}%
+		\label{fig:localization}%
+	\end{figure}
+
 	\item An extended Kalman Filter looks at landmarks as its measurement model, and only models gaussian measurement models. It is a lot more efficient - both in time and space complexity. It also needs to take an initial pose, whereas the particle filter does not.
 \end{enumerate}
 

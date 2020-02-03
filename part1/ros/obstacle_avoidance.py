@@ -23,10 +23,21 @@ def braitenberg(front, front_left, front_right, left, right):
 
     # MISING: Implement a braitenberg controller that takes the range
     # measurements given in argument to steer the robot.
-    measure = np.array([front, front_left, front_right, left, right])
-    u = np.log(front) + 0.5*np.log(front_left) + 0.5*np.log(front_right) + 0.2
-    w = -0.5*right + -0.25*front_right + 0.25*front_left + 0.5 * left
-    return u*0.5, w/0.8
+    # measure = np.array([front, front_left, front_right, left, right])
+    # u = front + 0.5*front_left + 0.5*front_right + 0.2
+    # w = 0.5*(1./right) + 0.25*(1./front_right) + -0.25 * \
+    #     (1./front_left) + - 0.7 * (1./left) + 0.1
+    # return u*0.5, w
+    s = np.array([[left, front_left, front, front_right, right]])
+    s = np.vectorize(lambda x: 1./x)(s)
+    s = np.transpose(s)
+    ws = np.array([[0.25, 0.05, 0.05, 0.05, 0.25],
+                   [-0.4, -1.2, -0.4, 1.5, 0.4]])
+
+    vs = ws.dot(s)
+    u = vs[0][0] + 0.2
+    w = vs[1][0] + 0.1
+    return u*0.7, w*0.8
 
 
 def rule_based(front, front_left, front_right, left, right):
