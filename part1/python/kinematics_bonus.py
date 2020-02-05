@@ -21,6 +21,8 @@ REFRESH_RATE = 1. / 15.
 
 def euler(current_pose, t, dt):
     next_pose = current_pose.copy()
+    next_pose_1 = current_pose.copy()
+    next_pose_2 = current_pose.copy()
     u = 0.25
     w = np.cos(t)
 
@@ -29,12 +31,32 @@ def euler(current_pose, t, dt):
     dtheta = w * dt
     dx = u * np.cos(theta) * dt
     dy = u * np.sin(theta) * dt
-
     next_pose[X] = current_pose[X] + dx
     next_pose[Y] = current_pose[Y] + dy
     next_pose[YAW] = current_pose[YAW] + dtheta
+    # Half time step applied twice
+    dtheta_1 = w * dt/2
+    dx_1 = u * np.cos(theta) * dt/2
+    dy_1 = u * np.sin(theta) * dt/2
 
-    return next_pose
+    next_pose_1[X] = current_pose[X] + dx_1
+    next_pose_1[Y] = current_pose[Y] + dy_1
+    next_pose_1[YAW] = current_pose[YAW] + dtheta_1
+
+    dtheta_2 = np.cos(t+dt/2) * dt/2
+    dx_2 = u * np.cos(next_pose_1[YAW]) * dt/2
+    dy_2 = u * np.sin(next_pose_1[YAW]) * dt/2
+
+    next_pose_2[X] = next_pose_1[X] + dx_2
+    next_pose_2[Y] = next_pose_1[Y] + dy_2
+    next_pose_2[YAW] = next_pose_1[YAW] + dtheta_2
+
+    error_estimate = next_pose_2 - next_pose
+
+    error_estimate = np.sum(error_estimate)
+    next_dt = 0.9 * \
+        min(max((np.abs(error_estimate)), 0.3), 2)
+    return next_pose, next_dt
 
 
 def euler_floor_t(current_pose, t, dt):
@@ -72,35 +94,20 @@ def rk4(current_pose, t, dt):
     return next_pose
 
 
+def rk4_(current_pose, t, dt):
+    next_pose = rk4(current_pose, t, dt)
+
+    next_pose_1 = rk4(current_pose, t, dt/2)
+    next_pose_2 = rk4(next_pose_1, t+dt/2, dt/2)
+    error_estimate = next_pose_2 - next_pose
+    error_estimate = np.sum(error_estimate)
+    next_dt = 0.9 * \
+        min(max((np.abs(error_estimate)), 0.3), 2)
+    return next_pose, next_dt
+
+
 def rk4_floor_t(current_pose, t, dt):
-    next_pose = current_pose.copy()
-    theta = current_pose[YAW]
-    u = 0.25
-    x = current_pose[X]
-    y = current_pose[Y]
-
-    k1 = dt * np.cos(np.floor(t))
-    k2 = dt * np.cos(np.floor(t + dt/2))
-    k3 = dt * np.cos(np.floor(t + dt/2))
-    k4 = dt * np.cos(np.floor(t + dt))
-    dtheta = 1/6 * (k1 + 2*k2 + 2*k3 + k4)
-    next_pose[YAW] = theta + dtheta
-
-    k1_x = dt * u * np.cos(theta)
-    k2_x = dt * u * np.cos(theta + k1/2)
-    k3_x = dt * u * np.cos(theta + k2/2)
-    k4_x = dt * u * np.cos(theta + k3)
-    dx = 1/6 * (k1_x + 2*k2_x + 2*k3_x + k4_x)
-    next_pose[X] = x + dx
-
-    k1_y = dt * u * np.sin(theta)
-    k2_y = dt * u * np.sin(theta + k1/2)
-    k3_y = dt * u * np.sin(theta + k2/2)
-    k4_y = dt * u * np.sin(theta + k3)
-    dy = 1/6 * (k1_y + 2*k2_y + 2*k3_y + k4_y)
-    next_pose[Y] = y + dy
-
-    return next_pose
+    return rk4_(current_pose, np.floor(t), dt)
 
 
 def main(args):
@@ -132,9 +139,12 @@ def main(args):
         # Simulate for 10 seconds.
         last_time_drawn = 0.
         last_time_drawn_real = time.time()
-        for t in np.arange(0., 10., dt):
-            robot_pose = integration_method(robot_pose, t, dt)
-
+        t = 0.
+        while t <= 10.:
+            print(t, dt)
+            t = t+dt
+            robot_pose, next_dt = integration_method(robot_pose, t, dt)
+            dt = next_dt
             plt.title('time = %.3f [s] with dt = %.3f [s]' % (t + dt, dt))
             robot_drawer.update(robot_pose)
 

@@ -135,8 +135,8 @@ class Particle(object):
         pos = np.array([f, fl, fr, l, r])
         pos = np.vectorize(lambda x: min(x,4))(pos)
         measure = np.array([front, front_left, front_right, left, right])
-        mean_pos = np.mean(pos)
-        mean_measure = np.mean(measure)
+        # mean_pos = np.mean(pos)
+        # mean_measure = np.mean(measure)
 
         ps_z_x = norm.pdf(measure, loc=pos, scale=sigma)
         p_z_given_x = np.mean(ps_z_x)
