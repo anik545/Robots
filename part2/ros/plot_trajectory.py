@@ -4,6 +4,7 @@ from __future__ import print_function
 
 import numpy as np
 import matplotlib.pylab as plt
+import sys
 
 
 if __name__ == '__main__':
@@ -35,4 +36,5 @@ if __name__ == '__main__':
     plt.ylabel('Error [m]')
     plt.xlabel('Timestep')
 
+  plt.savefig(sys.argv[1])
   plt.show()
