@@ -274,7 +274,7 @@ def rrt_star(start_pose, goal_position, occupancy_grid):
         u = None
         # First pick u to be nearest neighbour
         for n, d, c in potential_parent:
-            if d > .2 and d < 1.5 and n.direction.dot(position - n.position) / d > 0.70710678118:
+            if d > .2 and d < 0.8 and n.direction.dot(position - n.position) / d > 0.70710678118:
                 u = n
                 break
         else:
@@ -310,7 +310,7 @@ def rrt_star(start_pose, goal_position, occupancy_grid):
             v1 = adjust_pose(n, position, occupancy_grid)
             if v1 is not None:
                 v1.cost = v.cost
-            if v1 is not None and (n.cost > v.cost + get_arc_length(n, v1)):
+            if v1 is not None and (n.cost > v.cost + get_arc_length(n, v1)) and n.parent is not None:
                 # u.add_neighbor(v1)
                 # v1.parent = u
                 print(v1.pose)
@@ -464,4 +464,7 @@ if __name__ == '__main__':
     plt.ylabel('y')
     plt.xlim([-.5 - 2., 2. + .5])
     plt.ylim([-.5 - 2., 2. + .5])
+    import sys
+    if len(sys.argv) >= 2:
+        plt.savefig(sys.argv[1])
     plt.show()

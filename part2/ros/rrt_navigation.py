@@ -56,28 +56,44 @@ def feedback_linearized(pose, velocity, epsilon):
     return u, w
 
 
+def normalize(vector):
+    return vector / np.linalg.norm(vector)
+
+
 def get_velocity(position, path_points):
     # print(path_points)
     v = np.zeros_like(position)
+    # return v
     if len(path_points) == 0:
         return v
     # Stop moving if the goal is reached.
     if np.linalg.norm(position - path_points[-1]) < .2:
         return v
     # print(path_points)
-    i,d = (sorted( ((i,np.linalg.norm(position - x)) for i,x in enumerate(path_points)), key=lambda x:x[1]))[0]
-    if i == len(path_points) - 1:
-        i = len(path_points)
-    i = np.clip(i,a_min=None,a_max=len(path_points)-2)
-    v = path_points[i+1] - position
-    v = path_points[i+1] - path_points[i]
 
+    # Find smallest distance from position to path
+    points = (sorted(((i, np.linalg.norm(position - x))
+                      for i, x in enumerate(path_points)), key=lambda x: x[1]))
+    i, d = points[0]
+    if i >= len(path_points) - 2:
+        i = len(path_points) - 2
+    v = path_points[i+1] - position
+    dir = normalize(v)
+    mag = 1./d
+    # v = path_points[i+1] - path_points[i]
 
     # MISSING: Return the velocity needed to follow the
     # path defined by path_points. Assume holonomicity of the
     # point located at position.
-    print(i,v,d)
-    return v*3
+    print(i, v, d)
+    return cap(dir*mag, max_speed=SPEED)
+
+
+def cap(v, max_speed):
+    n = np.linalg.norm(v)
+    if n > max_speed:
+        return v / n * max_speed
+    return v
 
 
 class SLAM(object):
@@ -229,6 +245,7 @@ def run(args):
 
         goal_reached = np.linalg.norm(slam.pose[:2] - goal.position) < .2
         if goal_reached:
+            print("Goal Reached")
             publisher.publish(stop_msg)
             rate_limiter.sleep()
             continue

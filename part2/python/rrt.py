@@ -34,16 +34,15 @@ def sample_random_position(occupancy_grid):
     # MISSING: Sample a valid random position (do not sample the yaw).
     # The corresponding cell must be free in the occupancy grid.
 
-    s = occupancy_grid.get_position(0, 0)
-    f = occupancy_grid.get_position(
+    min_coords = occupancy_grid.get_position(0, 0)
+    max_coords = occupancy_grid.get_position(
         occupancy_grid.values.shape[0], occupancy_grid.values.shape[1])
 
     # position = np.random.uniform(-2, 2, size=2)
-    position = [np.random.uniform(s[0], f[0]), np.random.uniform(s[1], f[1])]
+    position = np.random.uniform(min_coords, max_coords)
     while not occupancy_grid.is_free(position):
         # position = np.random.uniform(-2, 2, size=2)
-        position = [np.random.uniform(
-            s[0], f[0]), np.random.uniform(s[1], f[1])]
+        position = np.random.uniform(min_coords, max_coords)
     return position
 
 
@@ -64,8 +63,8 @@ def adjust_pose(node, final_position, occupancy_grid):
     final_pose[YAW] = 2*angle - node.pose[YAW]
     final_node = Node(final_pose)
 
-    if not occupancy_grid.is_free(final_node.position) or not occupancy_grid.is_free(node.position):
-        return None
+    # if not occupancy_grid.is_free(final_node.position) or not occupancy_grid.is_free(node.position):
+    #     return None
 
     if not check_arc(node, final_node, occupancy_grid):
         print("failed check_arc")
@@ -396,4 +395,7 @@ if __name__ == '__main__':
     plt.ylabel('y')
     plt.xlim([-.5 - 2., 2. + .5])
     plt.ylim([-.5 - 2., 2. + .5])
+    import sys
+    if len(sys.argv) >= 2:
+        plt.savefig(sys.argv[1])
     plt.show()
