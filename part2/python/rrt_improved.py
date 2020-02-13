@@ -70,6 +70,7 @@ def adjust_pose(node, final_position, occupancy_grid):
     if not check_arc(node, final_node, occupancy_grid):
         print("failed check_arc")
         return None
+    final_node.cost = node.cost + get_arc_length(node, final_node)
     return final_node
 
 
@@ -226,8 +227,22 @@ class Node(object):
     def cost(self, c):
         self._cost = c
 
+    def __repr__(self):
 
-def rrt(start_pose, goal_position, occupancy_grid):
+        return str(self.pose) + " cost: " + str(self.cost) + "\n"
+
+
+def get_arc_length(node_a, node_b):
+    centre, r = find_circle(node_a, node_b)
+
+    initial = node_a.position - centre
+    final = node_b.position - centre
+    arc_angle = angle_between(initial, final)
+    arc_length = r * arc_angle
+    return arc_length
+
+
+def rrt_star(start_pose, goal_position, occupancy_grid):
     # RRT builds a graph one node at a time.
     graph = []
     start_node = Node(start_pose)
@@ -236,6 +251,7 @@ def rrt(start_pose, goal_position, occupancy_grid):
         print('Goal position is not in the free space.')
         return start_node, final_node
     graph.append(start_node)
+
     for _ in range(MAX_ITERATIONS):
         position = sample_random_position(occupancy_grid)
         # With a random chance, draw the goal position.
@@ -245,21 +261,70 @@ def rrt(start_pose, goal_position, occupancy_grid):
         # In practice, one uses an efficient spatial structure (e.g., quadtree).
         potential_parent = sorted(
             ((n, np.linalg.norm(position - n.position)) for n in graph), key=lambda x: x[1])
+
+        potential_parent = sorted(
+            ((n, np.linalg.norm(position - n.position), n.cost) for n in graph), key=lambda x: x[2])
+
+        neighbourhood = list(n for n in graph if np.linalg.norm(
+            position - n.position) < 2. and n.direction.dot(position - n.position) / np.linalg.norm(
+            position - n.position) > 0.70710678118)
+
         # Pick a node at least some distance away but not too far.
         # We also verify that the angles are aligned (within pi / 4).
         u = None
-        for n, d in potential_parent:
+        # First pick u to be nearest neighbour
+        for n, d, c in potential_parent:
             if d > .2 and d < 1.5 and n.direction.dot(position - n.position) / d > 0.70710678118:
                 u = n
                 break
         else:
             continue
+
+        # x_min = x_nearest
         v = adjust_pose(u, position, occupancy_grid)
         if v is None:
             continue
+
+        v.cost = u.cost + get_arc_length(u, v)
+        # Then see if any node in neighbourhood has lower cost
+        # for all in X_near
+        for n in neighbourhood:
+            v1 = adjust_pose(n, position, occupancy_grid)
+            if v1 is None:
+                continue
+            c = n.cost + get_arc_length(n, v1)
+            if c < v.cost:
+                print('get cheaper')
+                # u is parent, v is x_new
+                v = v1
+                v.cost = n.cost + get_arc_length(n, v)
+                u = n
+
         u.add_neighbor(v)
         v.parent = u
         graph.append(v)
+
+        # Rewire nodes near the new node if using the new node gives a lower cost,
+        # don't rewire x's parent
+        for n in (x for x in neighbourhood if x != u):
+            v1 = adjust_pose(n, position, occupancy_grid)
+            if v1 is not None:
+                v1.cost = v.cost
+            if v1 is not None and (n.cost > v.cost + get_arc_length(n, v1)):
+                # u.add_neighbor(v1)
+                # v1.parent = u
+                print(v1.pose)
+                # print('rewire', n.pose, n.parent.pose, v1.pose)
+                v1.add_neighbor(n)
+                n.parent.neighbors.remove(n)
+                n.parent = v1
+                n.cost = v1.cost + get_arc_length(v1, n)
+                graph.append(v1)
+                # n.add_neighbor(v1)
+                # v1.parent = n
+            else:
+                continue
+
         if np.linalg.norm(v.position - goal_position) < .2:
             final_node = v
             break
@@ -352,9 +417,11 @@ def draw_solution(start_node, final_node=None):
             final_node.position[0], final_node.position[1], s=10, marker='o', color='k')
         # Draw final path.
         v = final_node
+        print(v, v.parent)
         while v.parent is not None:
             draw_path(v.parent, v, color='k', lw=2)
             v = v.parent
+            print(v, v.parent)
 
 
 if __name__ == '__main__':
@@ -379,7 +446,8 @@ if __name__ == '__main__':
         occupancy_grid, data['origin'], data['resolution'])
 
     # Run RRT.
-    start_node, final_node = rrt(START_POSE, GOAL_POSITION, occupancy_grid)
+    start_node, final_node = rrt_star(
+        START_POSE, GOAL_POSITION, occupancy_grid)
 
     # Plot environment.
     fig, ax = plt.subplots()
