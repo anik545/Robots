@@ -25,7 +25,7 @@ def get_velocity_to_reach_goal(position, goal_position):
     # assuming that there are no obstacles.
     dir = normalize(goal_position - position)
     mag = np.linalg.norm(goal_position - position)
-    v = ((mag) ** 2) * dir
+    v = (2*mag) * dir
     # v = goal_position - position
     return cap(v, MAX_SPEED)
 
@@ -45,7 +45,7 @@ def get_velocity_to_avoid_obstacles(position, obstacle_positions, obstacle_radii
         # new vec has magnitude of reciprocal of distance in direction away from obstacle
         v += (1/dist_to_obs) * normalize(vec_to_obs)
         v = v*0.3
-        v = rotate(v, 1)
+        v = rotate(v, 0.2)
     return cap(v, MAX_SPEED)
 
 
@@ -77,8 +77,13 @@ def get_velocity(position, mode='all'):
     if mode in ('obstacle', 'all'):
         v_avoid = get_velocity_to_avoid_obstacles(
             position,
-            [CYLINDER_POSITION, CYLINDER_POSITION_1],
-            [CYLINDER_RADIUS, CYLINDER_RADIUS_1])
+            [CYLINDER_POSITION,
+             CYLINDER_POSITION_1
+             ],
+            [CYLINDER_RADIUS,
+             CYLINDER_RADIUS_1
+             ]
+        )
     else:
         v_avoid = np.zeros(2, dtype=np.float32)
     v = v_goal + v_avoid

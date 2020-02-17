@@ -66,9 +66,6 @@ def get_velocity(position, path_points):
     # return v
     if len(path_points) == 0:
         return v
-    # Stop moving if the goal is reached.
-    if np.linalg.norm(position - path_points[-1]) < .2:
-        return v
     # print(path_points)
 
     # Find smallest distance from position to path
@@ -79,14 +76,14 @@ def get_velocity(position, path_points):
         i = len(path_points) - 2
     v = path_points[i+1] - position
     dir = normalize(v)
-    mag = 1./d
+    mag = SPEED
     # v = path_points[i+1] - path_points[i]
 
     # MISSING: Return the velocity needed to follow the
     # path defined by path_points. Assume holonomicity of the
     # point located at position.
     print(i, v, d)
-    return cap(dir*mag, max_speed=SPEED)
+    return cap(dir*np.sqrt(mag), max_speed=SPEED)
 
 
 def cap(v, max_speed):
